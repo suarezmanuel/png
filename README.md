@@ -1,8 +1,8 @@
-# png
+# PNG
 
-library written in ts to sample pixels from common png formats <br/>
+library written in ts to sample pixels from common png formats <br/><br/><br/>
 
-chunk is made up of header, data, and footer. <br/>
+a ``PNG`` file is made of chunks, a chunk is made up of a header, data, and a footer. <br/>
 
 chunk headers are 32 bits, vals from 0 to 255. <br/>
 header is the form of: length, type. the type is made up of 4 numbers interpreted in ascii <br/>
