@@ -29,7 +29,7 @@ interlace - is the image loaded with interlace? format for faster image loading,
 
 next there may be the chunks ``sRGB``, ``pHYs``, ``PLTE``, ``tRNS``, ``IDAT``, ``IEND``, etc..<br/>
 
-``IDAT`` holds the pixels themselves and scanlines <br/>
+``IDAT`` holds the pixels themselves and scanlines, note that each scanline is preceeded by a filter byte used in the filter algorithm <br/>
 
 ``IEND`` holds no data, it just holds a checksum. <br/>
 
