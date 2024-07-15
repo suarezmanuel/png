@@ -1,6 +1,8 @@
 {
   "dependencies": {
-    "fs": "^0.0.1-security"
+    "fs": "^0.0.1-security",
+    "pngjs": "^7.0.0",
+    "zlib": "^1.0.5"
   },
   "devDependencies": {
     "@types/node": "^20.14.10"

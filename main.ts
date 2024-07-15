@@ -1,5 +1,6 @@
 const fs = require('fs').promises;
 const { PNG } = require ('pngjs');
+const zlib = require ('zlib');
 
 class png_sampler {
 
@@ -12,7 +13,7 @@ class png_sampler {
   private bytesPerPixel : number = 0;
   private bytesPerLine : number = 0;
   private buffer : any;
-  private dataStart : number = 0;
+  private decompressedData : any;
 
 
   async init_sampler (src: string) : Promise<void> {
@@ -43,7 +44,7 @@ class png_sampler {
         if (this.currChunkType === 'IHDR') {
 
           // set image info
-          // width si from pos + 8 until pos + 122
+          // width is from pos + 8 until pos + 122
           this.width = this.buffer.readUInt32BE(pos + 8);
           this.height = this.buffer.readUInt32BE(pos + 12);
           // read the single int directly
@@ -60,11 +61,23 @@ class png_sampler {
           // IDAT isn't pure data, it holds a byte for filter type of the line
           // at the start of the scan line, thats why the +1
           this.bytesPerLine = this.width * this.bytesPerPixel + 1;
+          console.log(`bytesPerLine: ${this.bytesPerLine}, width: ${this.width}, bytesPerPixel: ${this.bytesPerPixel}`);
 
         } else if (this.currChunkType === "IDAT") {
-          // pos + 8 points directly at the first byte of data
-          this.dataStart = pos + 8;
-          return;
+            
+            let compressedData = Buffer.alloc(0);
+            // the data may be distributed over many IDAT chunks
+            while (this.currChunkType === "IDAT") {
+
+                compressedData = Buffer.concat([compressedData, this.buffer.slice(pos+8, pos+8+this.currChunkLength)]);
+                pos += 12+this.currChunkLength;
+
+                this.currChunkLength = this.buffer.readUInt32BE(pos);
+                this.currChunkType = this.buffer.toString('ascii', pos + 4, pos + 8);
+            }
+
+            this.decompressedData = zlib.inflateSync(compressedData);
+            return;
         }
 
         // skip header, data, and footer of current chunk
@@ -83,21 +96,18 @@ class png_sampler {
 
   sample_pixel(x: number, y: number): [number, number, number, number] {
 
-    if (!this.buffer) { throw new Error('PNG not initialized. Call init_sampler first'); }
-    if (x > this.width || y > this.height || x < 0 || y < 0) {
+    if (!this.decompressedData) { throw new Error('PNG not initialized or decompressed. Call init_sampler first'); }
+    if (x >= this.width || y >= this.height || x < 0 || y < 0) {
       throw new Error("coordinate values out of range");
     }
-
-    // +1 is to skip the filter type byte at the start of the scanline
-    const pixelStart = this.dataStart + (y * this.bytesPerLine) + (x * this.bytesPerPixel) + 1;
-
-    const r = this.buffer[pixelStart];
-    const g = this.buffer[pixelStart + 1];
-    const b = this.buffer[pixelStart + 2];
-    // check rgb or rgba
-    const a = this.colorType === 6 ? this.buffer[pixelStart + 3] : 255;
-
-    // return the pixel colors
+  
+    const pixelStart = (y * this.bytesPerLine) + (x * this.bytesPerPixel) + 1;
+  
+    const r = this.decompressedData[pixelStart];
+    const g = this.decompressedData[pixelStart + 1];
+    const b = this.decompressedData[pixelStart + 2];
+    const a = this.colorType === 6 ? this.decompressedData[pixelStart + 3] : 255;
+  
     return [r, g, b, a];
   }
 
@@ -121,10 +131,10 @@ async function img_test () {
   const sampler = new png_sampler();
   await sampler.init_sampler('minecraft_0.png');
 
-  const x = 128;
-  const y = 96;
-  const width = 32;
-  const height = 32;
+  const x = 0;
+  const y = 0;
+  const width = 200;
+  const height = 200;
 
   const sampled = sampler.sample_rectangle(x, y, width, height);
   const img = new PNG ({ width, height });
