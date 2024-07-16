@@ -16,6 +16,8 @@ class png_sampler {
   private buffer : any;
   public decompressedData : any;
   private compressedData : any;
+  // array of processed bytes
+  public pixels : any;
 
   async init_sampler (src: string) : Promise<void> {
 
@@ -80,6 +82,7 @@ class png_sampler {
             }
 
             this.decompressedData = zlib.inflateSync(this.compressedData);
+            this.pixels = this.filter_pixels(this.width, this.height);
             // console.log("Decompressed data length:", this.decompressedData.length);
             // console.log("Expected data length:", this.height * this.bytesPerLine);
 
@@ -116,75 +119,108 @@ class png_sampler {
   }
 
   sample_pixel(x: number, y: number): [number, number, number, number] {
-    if (!this.decompressedData) { throw new Error('PNG not initialized or decompressed. Call init_sampler first'); }
+
+    if (!this.pixels) { throw new Error('PNG not initialized or decompressed. Call init_sampler first'); }
     if (x >= this.width || y >= this.height || x < 0 || y < 0) {
         throw new Error("coordinate values out of range");
     }
 
-    const lineStart = y * this.bytesPerLine;
-    const pixelStart = lineStart + x * this.bytesPerPixel + 1; // +1 to skip filter type byte
+    const pixelStart = y * this.bytesPerLine + x * this.bytesPerPixel;
 
-    let r = this.decompressedData[pixelStart];
-    let g = this.decompressedData[pixelStart + 1];
-    let b = this.decompressedData[pixelStart + 2];
-    let a = this.colorType == 6 ? this.decompressedData[pixelStart + 3] : 255;
+    let r = this.pixels[pixelStart];
+    let g = this.pixels[pixelStart + 1];
+    let b = this.pixels[pixelStart + 2];
+    let a = this.colorType == 6 ? this.pixels[pixelStart + 3] : 255;
 
     return [r, g, b, a];
   }
 
-  sample_rectangle(x: number, y: number, width: number, height: number): Uint8Array {
+  // just doesn't touch the first byte in the line
+  filter_pixels(width: number, height: number): Uint8Array {
+
+    // array of bytes that conclude the image, to be final output
     let pixels = new Uint8Array(width * height * 4);
+    // array of bytes that conclude a scanline, including the filter byte
     let prevLine = new Uint8Array(this.bytesPerLine);
     
     for (let j = 0; j < height; j++) {
-        const lineStart = (y + j) * this.bytesPerLine;
-        const filterType = this.decompressedData[lineStart];
-        let currentLine = new Uint8Array(this.bytesPerLine);
+
+      const lineStart = j * this.bytesPerLine;
+      // at the start of each line we have the filter type
+      const filterType = this.decompressedData[lineStart];
+      // initialize an array of zeroes representing the line as unsinged ints
+      let currentLine = new Uint8Array(this.bytesPerLine);
+      
+      // loop through the array
+      for (let i = 0; i < this.bytesPerLine - 1; i++) {
+
+        // from second line byte to first byte of next line
+        const byte = this.decompressedData[lineStart + i + 1];
+        // will be byte after transformation
+        let filtered;
         
-        for (let i = 0; i < this.bytesPerLine - 1; i++) {
-            const byte = this.decompressedData[lineStart + 1 + i];
-            let filtered;
-            
-            switch (filterType) {
-                case 0: // None
-                    filtered = byte;
-                    break;
-                case 1: // Sub
-                    filtered = byte + (i >= this.bytesPerPixel ? currentLine[i - this.bytesPerPixel] : 0);
-                    break;
-                case 2: // Up
-                    filtered = byte + prevLine[i];
-                    break;
-                case 3: // Average
-                    const left = i >= this.bytesPerPixel ? currentLine[i - this.bytesPerPixel] : 0;
-                    filtered = byte + Math.floor((left + prevLine[i]) / 2);
-                    break;
-                case 4: // Paeth
-                    const a = i >= this.bytesPerPixel ? currentLine[i - this.bytesPerPixel] : 0;
-                    const b = prevLine[i];
-                    const c = i >= this.bytesPerPixel ? prevLine[i - this.bytesPerPixel] : 0;
-                    filtered = byte + this.paethPredictor(a, b, c);
-                    break;
-                default:
-                    throw new Error(`Unknown filter type: ${filterType}`);
-            }
-            
-            currentLine[i] = filtered & 0xFF;
+        switch (filterType) {
+
+          case 0: // None
+            console.log(0);
+            filtered = byte;
+            break;
+
+          case 1: // Sub
+            // if after the first pixel, sum our byte with the previous byte
+            filtered = byte + (i >= this.bytesPerPixel ? currentLine[i - this.bytesPerPixel] : 0);
+            break;
+
+          case 2: // Up
+            filtered = byte + prevLine[i];
+            break;
+
+          case 3: // Average
+            // if after the first pixel, get previous byte
+            const left = i >= this.bytesPerPixel ? currentLine[i - this.bytesPerPixel] : 0;
+            // add to the curr byte the average of the left and top bytes
+            filtered = byte + Math.floor((left + prevLine[i]) / 2);
+            break;
+
+          case 4: // Paeth
+            // if after the first pixel, get the previous byte
+            const a = i >= this.bytesPerPixel ? currentLine[i - this.bytesPerPixel] : 0;
+            // b is the top byte
+            const b = prevLine[i];
+            // if after the first pixel, get the top left byte
+            const c = i >= this.bytesPerPixel ? prevLine[i - this.bytesPerPixel] : 0;
+            // sum curr byte with closest out of a,b,c to a+b-c
+            filtered = byte + this.paethPredictor(a, b, c);
+            break;
+
+          default:
+            throw new Error(`Unknown filter type: ${filterType}`);
         }
+          
+        // modulo 256
+        currentLine[i] = filtered & 0xFF;
+      }
+      
+
+      // go through scan line
+      for (let i = 0; i < width; i++) {
+
+        // get starting byte of curr pixel in line
+        const pixelStart = i * this.bytesPerPixel;
+        // get byte position of curr pixel in buffer
+        const outIndex = (j * width + i) * 4;
         
-        for (let i = 0; i < width; i++) {
-            const pixelStart = i * this.bytesPerPixel;
-            const outIndex = (j * width + i) * 4;
-            
-            pixels[outIndex] = currentLine[pixelStart];
-            pixels[outIndex + 1] = currentLine[pixelStart + 1];
-            pixels[outIndex + 2] = currentLine[pixelStart + 2];
-            pixels[outIndex + 3] = this.colorType == 6 ? currentLine[pixelStart + 3] : 255;
-        }
-        
-        prevLine.set(currentLine);
+        pixels[outIndex]     = currentLine[pixelStart];
+        pixels[outIndex + 1] = currentLine[pixelStart + 1];
+        pixels[outIndex + 2] = currentLine[pixelStart + 2];
+        pixels[outIndex + 3] = this.colorType == 6 ? currentLine[pixelStart + 3] : 255;
+      }
+      
+      // prevLine is currentLine, and currentLine will be redefined
+      prevLine.set(currentLine);
     }
     
+    // return adorned pixels
     return pixels;
   }
 
@@ -201,19 +237,23 @@ class png_sampler {
 
 
 async function img_test() {
+
   const sampler = new png_sampler();
   await sampler.init_sampler('files/minecraft_0.png');
   sampler.print_all();
 
-  const x = 0;
-  const y = 0;
+  // const x = 0;
+  // const y = 0;
   const width = sampler.width;
   const height = sampler.height;
 
+  // timing the sampling of the bytes in the rectangle
   console.time('Sampling');
-  const sampled = sampler.sample_rectangle(x, y, width, height);
+  // sampled pixels after filtering
+  const sampled = sampler.pixels;
   console.timeEnd('Sampling');
 
+  // creating png
   const img = new PNG({ width, height, filterType: -1 });
   console.log("Created PNG dimensions:", img.width, img.height);
 
@@ -222,8 +262,9 @@ async function img_test() {
   console.time('Writing file');
   img.pack().pipe(fsSync.createWriteStream('./out/output.png'))
       .on('finish', () => {
-          console.timeEnd('Writing file');
-          console.log('PNG file written.');
+        // time the time to write
+        console.timeEnd('Writing file');
+        console.log('PNG file written.');
       })
       .on('error', (error: any) => console.error('Error writing PNG:', error));
 }
