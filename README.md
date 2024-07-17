@@ -2,6 +2,58 @@
 
 library written in ts to sample pixels from common png formats <br/><br/>
 
+## support
+
+chunks supported: `IHDR`, `IDAT`, `IEND`
+
+algorithms supported: scanline filtering algorithm
+<br/>
+
+## compilation
+
+if you want to try the test yourself, you can compile and run the project
+
+to compile run:
+1. install the initial libs if first run `npm i `.
+2. compile the ts file, do `tsc` in the project's root folder.
+3. run the compiled js file using `node src/main.js`.
+
+some test images are in the `files/` folder, the output image will be in the `out` folder.
+
+i'll soon enough make it a library that can be included in other projects
+<br/>
+
+## usage
+
+here is a use case example, of a function in the library this samples pixels for tests
+
+```
+async function sample_rectangle(x: number, y: number, width: number, height: number) {
+  
+  let sampler = new png_sampler();
+  await sampler.init_sampler("files/minecraft_0.png");
+
+  // preallocate the pixels
+  let sampledPixels = Buffer.alloc(width * height * sampler.bytesPerPixel);
+
+  console.time("sampling pixels");
+  for (let j = 0; j < height; j++) {
+    for (let i = 0; i < width; i++) {
+
+      const pixel = sampler.sample_pixel(x + i, y + j);
+      const offset = (j * width + i) * sampler.bytesPerPixel;
+      sampledPixels.set(pixel, offset);
+    }
+  }
+  console.timeEnd("sampling pixels");
+
+  create_png(sampledPixels, width, height, "output.png");
+}
+```
+<br/>
+
+## what is a PNG?
+
 for context,
 
 a ``PNG`` file is made of chunks, a chunk is made up of a header, data, and a footer. <br/>
@@ -31,7 +83,9 @@ next there may be the chunks ``sRGB``, ``pHYs``, ``PLTE``, ``tRNS``, ``IDAT``, `
 
 ``IDAT`` holds the pixels themselves and scanlines, note that each scanline is preceeded by a filter byte used in the filter algorithm <br/>
 
-``IEND`` holds no data, it just holds a checksum. <br/>
+there may be many `IDAT` chunks that together form the image's data.
+
+``IEND`` holds no data, it just holds a header and footer. <br/>
 
 ``IHDR``, ``IDAT``, ``IEND`` are the least you need, together with the magic number at the beginning.
 

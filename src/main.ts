@@ -12,7 +12,7 @@ class png_sampler {
   private bitDepth : number = 0;
   private colorType : number = 0;
   public bytesPerPixel : number = 0;
-  private bytesPerLine : number = 0;
+  public bytesPerLine : number = 0;
   private buffer : any;
   public decompressedData : any;
   private compressedData : any;
@@ -220,23 +220,18 @@ class png_sampler {
         throw new Error("coordinate values out of range");
     }
 
-    const pixelStart = y * this.bytesPerLine + x * this.bytesPerPixel;
-
-    let r = this.pixels[pixelStart];
-    let g = this.pixels[pixelStart + 1];
-    let b = this.pixels[pixelStart + 2];
-    let a = this.colorType == 6 ? this.pixels[pixelStart + 3] : 255;
-
-    return [r, g, b, a];
+    const pixelStart = y * this.width * this.bytesPerPixel;
+    return this.pixels.slice(pixelStart + x * this.bytesPerPixel, pixelStart + (x+1) * this.bytesPerPixel);
   }
 }
 
-
 function create_png (pixels: any, width: number, height: number, name: string) {
   
+  const img = new PNG({ width, height});
   // creating png
-  const img = new PNG({ width, height, filterType: -1 });
+  // const img = new PNG({ width, height, filterType: -1 });
   console.log("created PNG of dimensions:", img.width, img.height);
+  console.log("Pixel data length:", pixels.length);
 
   img.data = pixels;
 
@@ -256,18 +251,21 @@ function create_png (pixels: any, width: number, height: number, name: string) {
 async function sample_rectangle(x: number, y: number, width: number, height: number) {
   
   let sampler = new png_sampler();
-  await sampler.init_sampler("files/rainbow.png");
+  await sampler.init_sampler("files/minecraft_0.png");
 
-  let sampledPixels = Buffer.alloc(0);
-  console.log("bytes per pixel", sampler.bytesPerPixel);
+  // preallocate the pixels
+  let sampledPixels = Buffer.alloc(width * height * sampler.bytesPerPixel);
 
-  for (let j=0; j < height; j++) {
+  console.time("sampling pixels");
+  for (let j = 0; j < height; j++) {
+    for (let i = 0; i < width; i++) {
 
-    let lineStart = (j + y) * sampler.width * sampler.bytesPerPixel;
-    // sampledPixels = Buffer.concat([sampledPixels, sampler.pixels.slice(lineStart, lineStart)]);
-    let currLine = sampler.pixels.slice(lineStart + x * sampler.bytesPerPixel, lineStart + (x + width) * sampler.bytesPerPixel);
-    sampledPixels = Buffer.concat([sampledPixels, currLine])
+      const pixel = sampler.sample_pixel(x + i, y + j);
+      const offset = (j * width + i) * sampler.bytesPerPixel;
+      sampledPixels.set(pixel, offset);
+    }
   }
+  console.timeEnd("sampling pixels");
 
   create_png(sampledPixels, width, height, "output.png");
 }
@@ -285,12 +283,13 @@ async function img_test() {
 
   sampler.print_info();
 
+  // create_png(sampled, width, height, "output.png");
   create_png(sampled, width, height, "output.png");
 }
 
 async function img_test2() {
 
-  sample_rectangle(100, 100, 1024, 1024);
+  sample_rectangle(0, 0, 250, 250);
 }
 
 
