@@ -59,7 +59,7 @@ class png_sampler {
                         // IDAT isn't pure data, it holds a byte for filter type of the line
                         // at the start of the scan line, thats why the +1
                         this.bytesPerLine = this.width * this.bytesPerPixel + 1;
-                        console.log(`bytesPerLine: ${this.bytesPerLine}, width: ${this.width}, bytesPerPixel: ${this.bytesPerPixel}`);
+                        // console.log(`bytesPerLine: ${this.bytesPerLine}, width: ${this.width}, bytesPerPixel: ${this.bytesPerPixel}`);
                     }
                     else if (this.currChunkType === "IDAT") {
                         this.compressedData = Buffer.alloc(0);
@@ -74,8 +74,6 @@ class png_sampler {
                         }
                         this.decompressedData = zlib.inflateSync(this.compressedData);
                         this.pixels = this.filter_pixels(this.width, this.height);
-                        // console.log("Decompressed data length:", this.decompressedData.length);
-                        // console.log("Expected data length:", this.height * this.bytesPerLine);
                         return;
                     }
                     // skip header, data, and footer of current chunk
@@ -89,34 +87,8 @@ class png_sampler {
             }
         });
     }
-    print_all() {
-        console.log("chunk length", this.currChunkLength);
-        console.log("chunk type", this.currChunkType);
-        console.log("width", this.width);
-        console.log("height", this.height);
-        console.log("bit depth", this.bitDepth);
-        console.log("color type", this.colorType);
-        console.log("bytes per pixel", this.bytesPerPixel);
-        console.log("bytes per line", this.bytesPerLine);
-        // console.log("buffer", this.buffer);
-        // console.log("compressed data", this.compressedData);
-        // console.log("decompressed data",this.decompressedData);
-    }
-    sample_pixel(x, y) {
-        if (!this.pixels) {
-            throw new Error('PNG not initialized or decompressed. Call init_sampler first');
-        }
-        if (x >= this.width || y >= this.height || x < 0 || y < 0) {
-            throw new Error("coordinate values out of range");
-        }
-        const pixelStart = y * this.bytesPerLine + x * this.bytesPerPixel;
-        let r = this.pixels[pixelStart];
-        let g = this.pixels[pixelStart + 1];
-        let b = this.pixels[pixelStart + 2];
-        let a = this.colorType == 6 ? this.pixels[pixelStart + 3] : 255;
-        return [r, g, b, a];
-    }
-    // just doesn't touch the first byte in the line
+    // doesn't touch the first pixel in scanline line
+    // processes all the next pixels in the scanline
     filter_pixels(width, height) {
         // array of bytes that conclude the image, to be final output
         let pixels = new Uint8Array(width * height * 4);
@@ -135,24 +107,24 @@ class png_sampler {
                 // will be byte after transformation
                 let filtered;
                 switch (filterType) {
-                    case 0: // None
+                    case 0: // none
                         console.log(0);
                         filtered = byte;
                         break;
-                    case 1: // Sub
+                    case 1: // sub
                         // if after the first pixel, sum our byte with the previous byte
                         filtered = byte + (i >= this.bytesPerPixel ? currentLine[i - this.bytesPerPixel] : 0);
                         break;
-                    case 2: // Up
+                    case 2: // up
                         filtered = byte + prevLine[i];
                         break;
-                    case 3: // Average
+                    case 3: // average
                         // if after the first pixel, get previous byte
                         const left = i >= this.bytesPerPixel ? currentLine[i - this.bytesPerPixel] : 0;
                         // add to the curr byte the average of the left and top bytes
                         filtered = byte + Math.floor((left + prevLine[i]) / 2);
                         break;
-                    case 4: // Paeth
+                    case 4: // paeth
                         // if after the first pixel, get the previous byte
                         const a = i >= this.bytesPerPixel ? currentLine[i - this.bytesPerPixel] : 0;
                         // b is the top byte
@@ -182,7 +154,7 @@ class png_sampler {
             // prevLine is currentLine, and currentLine will be redefined
             prevLine.set(currentLine);
         }
-        // return adorned pixels
+        // return processed pixels
         return pixels;
     }
     paethPredictor(a, b, c) {
@@ -196,33 +168,81 @@ class png_sampler {
             return b;
         return c;
     }
+    print_info() {
+        console.log("\n-----------PNG info-----------");
+        console.log("img width", this.width);
+        console.log("img height", this.height);
+        console.log("bit depth", this.bitDepth);
+        console.log("color type", this.colorType);
+        console.log("bytes per pixel", this.bytesPerPixel);
+        console.log("bytes per line", this.bytesPerLine);
+        console.log("pixel bytes", this.pixels.length);
+        console.log("img width", this.width);
+        console.log("------------------------------\n");
+    }
+    sample_pixel(x, y) {
+        if (!this.pixels) {
+            throw new Error('PNG not initialized or decompressed. Call init_sampler first');
+        }
+        if (x >= this.width || y >= this.height || x < 0 || y < 0) {
+            throw new Error("coordinate values out of range");
+        }
+        const pixelStart = y * this.bytesPerLine + x * this.bytesPerPixel;
+        let r = this.pixels[pixelStart];
+        let g = this.pixels[pixelStart + 1];
+        let b = this.pixels[pixelStart + 2];
+        let a = this.colorType == 6 ? this.pixels[pixelStart + 3] : 255;
+        return [r, g, b, a];
+    }
+}
+function create_png(pixels, width, height, name) {
+    // creating png
+    const img = new PNG({ width, height, filterType: -1 });
+    console.log("created PNG of dimensions:", img.width, img.height);
+    img.data = pixels;
+    console.time('writing file');
+    // create the directory if it doesn't exist
+    fsSync.mkdirSync("./out", { recursive: true });
+    // write the pixels to the image
+    img.pack().pipe(fsSync.createWriteStream('./out/' + name))
+        .on('finish', () => {
+        // time the time to write
+        console.timeEnd('writing file');
+        console.log('PNG file written.');
+    })
+        .on('error', (error) => console.error('error writing PNG:', error));
+}
+function sample_rectangle(x, y, width, height) {
+    return __awaiter(this, void 0, void 0, function* () {
+        let sampler = new png_sampler();
+        yield sampler.init_sampler("files/rainbow.png");
+        let sampledPixels = Buffer.alloc(0);
+        console.log("bytes per pixel", sampler.bytesPerPixel);
+        for (let j = 0; j < height; j++) {
+            let lineStart = (j + y) * sampler.width * sampler.bytesPerPixel;
+            // sampledPixels = Buffer.concat([sampledPixels, sampler.pixels.slice(lineStart, lineStart)]);
+            let currLine = sampler.pixels.slice(lineStart + x * sampler.bytesPerPixel, lineStart + (x + width) * sampler.bytesPerPixel);
+            sampledPixels = Buffer.concat([sampledPixels, currLine]);
+        }
+        create_png(sampledPixels, width, height, "output.png");
+    });
 }
 function img_test() {
     return __awaiter(this, void 0, void 0, function* () {
+        // get sampler of desired png
         const sampler = new png_sampler();
-        yield sampler.init_sampler('files/minecraft_0.png');
-        sampler.print_all();
-        const x = 0;
-        const y = 0;
+        yield sampler.init_sampler('files/rainbow.png');
         const width = sampler.width;
         const height = sampler.height;
-        // timing the sampling of the bytes in the rectangle
-        console.time('Sampling');
         // sampled pixels after filtering
         const sampled = sampler.pixels;
-        console.timeEnd('Sampling');
-        // creating png
-        const img = new PNG({ width, height, filterType: -1 });
-        console.log("Created PNG dimensions:", img.width, img.height);
-        img.data = Buffer.from(sampled);
-        console.time('Writing file');
-        img.pack().pipe(fsSync.createWriteStream('./out/output.png'))
-            .on('finish', () => {
-            // time the time to write
-            console.timeEnd('Writing file');
-            console.log('PNG file written.');
-        })
-            .on('error', (error) => console.error('Error writing PNG:', error));
+        sampler.print_info();
+        create_png(sampled, width, height, "output.png");
+    });
+}
+function img_test2() {
+    return __awaiter(this, void 0, void 0, function* () {
+        sample_rectangle(100, 100, 1024, 1024);
     });
 }
 function main() {
@@ -237,4 +257,5 @@ function main() {
 }
 // call main and spit any error into the console
 // main().catch(console.error);
-img_test().catch(console.error);
+// img_test().catch(console.error);
+img_test2().catch(console.error);
