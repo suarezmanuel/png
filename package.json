@@ -9,7 +9,7 @@
   },
   "name": "simplepngjs",
   "description": "library written in ts to sample pixels from common png formats <br/><br/>",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
