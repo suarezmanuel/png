@@ -7,7 +7,7 @@ library written in ts to sample pixels from common png formats <br/><br/>
 chunks supported: `IHDR`, `IDAT`, `IEND`
 
 algorithms supported: scanline filtering algorithm
-<br/>
+<br/><br/>
 
 ## compilation
 
@@ -21,7 +21,7 @@ to compile run:
 some test images are in the `files/` folder, the output image will be in the `out` folder.
 
 i'll soon enough make it a library that can be included in other projects
-<br/>
+<br/><br/>
 
 ## usage
 
