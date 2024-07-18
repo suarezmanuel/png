@@ -19,7 +19,7 @@ export class png_sampler {
   // array of processed bytes
   public pixels : any;
 
-  async init_sampler (src: string) : Promise<void> {
+  public async init_sampler (src: string) : Promise<void> {
 
     // buffer is in base 10, 0 <= buffer[i] <= 255, thus buffer[i] represents a byte
     // fs.readFile is an asynchronous call
