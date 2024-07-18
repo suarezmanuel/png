@@ -272,4 +272,4 @@ export async function sample_rectangle(x: number, y: number, width: number, heig
 }
 
 
-sample_rectangle(0, 0, 500, 500, "files/minecraft_0.png").catch(console.error);
+// sample_rectangle(0, 0, 500, 500, "files/minecraft_0.png").catch(console.error);
