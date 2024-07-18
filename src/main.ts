@@ -3,7 +3,7 @@ const fsSync = require('fs');
 const { PNG } = require ('pngjs');
 const zlib = require ('zlib');
 
-class png_sampler {
+export class png_sampler {
 
   private currChunkLength : number = 0;
   private currChunkType : string = "";
@@ -199,7 +199,7 @@ class png_sampler {
       return c;
   }
 
-  print_info () {
+  public print_info () {
 
     console.log("\n-----------PNG info-----------");
     console.log("img width", this.width);
@@ -225,6 +225,7 @@ class png_sampler {
   }
 }
 
+// using PNG lib for testing output
 function create_png (pixels: any, width: number, height: number, name: string) {
   
   const img = new PNG({ width, height});
@@ -248,10 +249,10 @@ function create_png (pixels: any, width: number, height: number, name: string) {
     .on('error', (error: any) => console.error('error writing PNG:', error));
 }
 
-async function sample_rectangle(x: number, y: number, width: number, height: number) {
+export async function sample_rectangle(x: number, y: number, width: number, height: number, img: string) {
   
   let sampler = new png_sampler();
-  await sampler.init_sampler("files/minecraft_0.png");
+  await sampler.init_sampler(img);
 
   // preallocate the pixels
   let sampledPixels = Buffer.alloc(width * height * sampler.bytesPerPixel);
@@ -270,41 +271,5 @@ async function sample_rectangle(x: number, y: number, width: number, height: num
   create_png(sampledPixels, width, height, "output.png");
 }
 
-async function img_test() {
 
-  // get sampler of desired png
-  const sampler = new png_sampler();
-  await sampler.init_sampler('files/rainbow.png');
-
-  const width = sampler.width;
-  const height = sampler.height;
-  // sampled pixels after filtering
-  const sampled = sampler.pixels;
-
-  sampler.print_info();
-
-  // create_png(sampled, width, height, "output.png");
-  create_png(sampled, width, height, "output.png");
-}
-
-async function img_test2() {
-
-  sample_rectangle(0, 0, 250, 250);
-}
-
-
-async function main () {
-
-  const sampler = new png_sampler();
-  // init_sampler is async
-  // and we need it to finish for sampling
-  await sampler.init_sampler('pixels-large.png');
-  const pixel = sampler.sample_pixel(100,100);
-  console.log('pixel value:', pixel);
-}
-
-// call main and spit any error into the console
-// main().catch(console.error);
-
-// img_test().catch(console.error);
-img_test2().catch(console.error);
+sample_rectangle(0, 0, 500, 500, "files/minecraft_0.png").catch(console.error);
