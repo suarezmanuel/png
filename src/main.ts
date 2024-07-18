@@ -1,7 +1,7 @@
-const fs = require('fs').promises;
-const fsSync = require('fs');
-const { PNG } = require ('pngjs');
-const zlib = require ('zlib');
+import fs from 'fs/promises';
+import * as fsSync from 'fs';
+import { PNG } from 'pngjs';
+import zlib from 'zlib';
 
 export class png_sampler {
 

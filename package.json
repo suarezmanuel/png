@@ -5,7 +5,8 @@
     "zlib": "^1.0.5"
   },
   "devDependencies": {
-    "@types/node": "^20.14.10"
+    "@types/node": "^20.14.10",
+    "@types/pngjs": "^6.0.5"
   },
   "name": "simplepngjs",
   "description": "library written in ts to sample pixels from common png formats <br/><br/>",
