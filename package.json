@@ -1,0 +1,31 @@
+{
+  "dependencies": {
+    "fs": "^0.0.1-security",
+    "pngjs": "^7.0.0",
+    "zlib": "^1.0.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/pngjs": "^6.0.5"
+  },
+  "name": "simplepngjs",
+  "description": "library written in ts to sample pixels from common png formats <br/><br/>",
+  "version": "1.0.3",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "/dist"
+  ],
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github.com/suarezmanuel/png"
+  },
+  "keywords": [
+    "png"
+  ],
+  "author": "suarezmanuel",
+  "license": "ISC"
+}
